@@ -47,7 +47,8 @@ export async function runTextTurn(input: ChatTurnInput): Promise<ChatTurnResult>
     traceEvent("turn", "text turn", { model: TEXT_MODEL }),
   ];
 
-  if (!process.env.OPENAI_API_KEY) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key || key.length < 40 || key.includes("sk-...")) {
     traces.push(
       traceEvent("llm", "missing OPENAI_API_KEY"),
     );
@@ -62,6 +63,7 @@ export async function runTextTurn(input: ChatTurnInput): Promise<ChatTurnResult>
   let previousId = input.previousResponseId ?? undefined;
   let nextInput: string | OpenAI.Responses.ResponseInput = input.userText;
 
+  try {
   for (let step = 0; step < 8; step++) {
     traces.push(
       traceEvent("llm", `responses.create (${step === 0 ? "user" : "tool results"})`, {
@@ -117,4 +119,13 @@ export async function runTextTurn(input: ChatTurnInput): Promise<ChatTurnResult>
     previousResponseId: previousId ?? null,
     traces,
   };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "OpenAI request failed";
+    traces.push(traceEvent("llm", "responses.create failed", { message }));
+    return {
+      reply: `I couldn't complete that turn: ${message}`,
+      previousResponseId: previousId ?? null,
+      traces,
+    };
+  }
 }

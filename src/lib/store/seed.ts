@@ -104,15 +104,16 @@ export function createSeedStore(): BooklyStore {
     ],
     returnCases: [],
     refunds: [],
+    passwordResets: [],
     policies: {
       shipping:
         "Standard shipping is 3–5 business days via Bookly Logistics. Tracking appears on the order once it ships. We do not offer same-day delivery.",
       returns:
         "Most delivered items can be returned within 30 days of delivery. Items must match the original order. Eligible returns create an RMA; Bookly issues an immediate refund to the original payment method when policy allows. We do not cancel in-flight shipments from this assistant — wait for delivery, then return.",
       password_reset:
-        "We cannot reset passwords from chat. Use the Sign in page → Forgot password, and check the inbox (and spam) for the email you use with Bookly. If nothing arrives in 10 minutes, try again or contact hello@bookly.example.",
+        "Bookly Care can send a password reset email from chat. If an account exists for that address, a link arrives within a few minutes (check spam). The link is valid for 24 hours. Bookly never confirms whether an email is registered. If nothing arrives, ask Care to send again or write hello@bookly.example.",
       general:
-        "Bookly is a small online bookstore. This assistant can look up your orders (email + order id), explain shipping and returns, walk through password reset, and start a return after you confirm. It cannot access other customers' data or invent order status.",
+        "Bookly is a small online bookstore. This assistant can look up your orders (email + order id), explain shipping and returns, send a password reset email, and start a return after you confirm. It cannot access other customers' data or invent order status.",
     },
   };
 }

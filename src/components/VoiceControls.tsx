@@ -110,11 +110,10 @@ export function VoiceControls({
       const sessionRes = await fetch("/api/realtime/session", { method: "POST" });
       const session = (await sessionRes.json()) as {
         clientSecret?: string;
-        model?: string;
         error?: string;
       };
       if (!session.clientSecret) {
-        throw new Error(session.error ?? "No Realtime client secret");
+        throw new Error(session.error ?? "Voice is unavailable right now");
       }
 
       const pc = new RTCPeerConnection();
@@ -140,21 +139,16 @@ export function VoiceControls({
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const model = session.model ?? "gpt-4o-realtime-preview";
-      const sdpRes = await fetch(
-        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
-        {
-          method: "POST",
-          body: offer.sdp,
-          headers: {
-            Authorization: `Bearer ${session.clientSecret}`,
-            "Content-Type": "application/sdp",
-            "OpenAI-Beta": "realtime=v1",
-          },
+      const sdpRes = await fetch("https://api.openai.com/v1/realtime/calls", {
+        method: "POST",
+        body: offer.sdp,
+        headers: {
+          Authorization: `Bearer ${session.clientSecret}`,
+          "Content-Type": "application/sdp",
         },
-      );
+      });
       if (!sdpRes.ok) {
-        throw new Error(`Realtime SDP exchange failed (${sdpRes.status})`);
+        throw new Error(`Voice connection failed (${sdpRes.status})`);
       }
       const answer = { type: "answer" as const, sdp: await sdpRes.text() };
       await pc.setRemoteDescription(answer);
@@ -173,49 +167,111 @@ export function VoiceControls({
     setStatus(track.enabled ? "live" : "muted");
   };
 
+  const onMicClick = () => {
+    if (status === "idle" || status === "error") {
+      void connect();
+      return;
+    }
+    if (status === "connecting") return;
+    toggleMute();
+  };
+
+  const live = status === "live" || status === "muted";
+
   return (
-    <div className="sans flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-1">
       <audio ref={audioRef} className="hidden" />
-      {status === "idle" || status === "error" ? (
+      <button
+        type="button"
+        onClick={onMicClick}
+        disabled={status === "connecting"}
+        title={
+          status === "live"
+            ? "Mute"
+            : status === "muted"
+              ? "Unmute"
+              : "Talk"
+        }
+        aria-label={
+          status === "live"
+            ? "Mute microphone"
+            : status === "muted"
+              ? "Unmute microphone"
+              : "Start voice"
+        }
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
+          live
+            ? "bg-[var(--live)] text-white"
+            : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
+        } ${status === "muted" ? "opacity-50" : ""}`}
+      >
+        {status === "connecting" ? (
+          <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-current" />
+        ) : (
+          <MicIcon muted={status === "muted"} />
+        )}
+      </button>
+      {live ? (
         <button
           type="button"
-          onClick={() => void connect()}
-          className="rounded-full border border-[var(--ink)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+          onClick={disconnect}
+          title="End voice"
+          aria-label="End voice"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
         >
-          Connect voice
+          <HangupIcon />
         </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={toggleMute}
-            className="rounded-full border border-[var(--ink)] px-3 py-1.5 text-xs font-medium"
-          >
-            {status === "muted" ? "Unmute" : "Mute"}
-          </button>
-          <button
-            type="button"
-            onClick={disconnect}
-            className="rounded-full border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent)]"
-          >
-            Disconnect
-          </button>
-        </>
-      )}
-      <span className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
-        {status === "connecting"
-          ? "Connecting…"
-          : status === "live"
-            ? "Voice live"
-            : status === "muted"
-              ? "Muted"
-              : status === "error"
-                ? "Voice error"
-                : "Text or voice"}
-      </span>
-      {error ? (
-        <span className="text-[11px] text-[var(--accent)]">{error}</span>
+      ) : null}
+      {error && status === "error" ? (
+        <span className="max-w-[9rem] truncate text-[11px] text-[var(--live)]">
+          {error}
+        </span>
       ) : null}
     </div>
+  );
+}
+
+function MicIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M7 11a5 5 0 0 0 10 0M12 16v4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      {muted ? (
+        <path
+          d="M4 5l16 14"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+      ) : null}
+    </svg>
+  );
+}
+
+function HangupIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 8c4-3 8-3 12 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 10.5L6.5 14M16 10.5L17.5 14"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

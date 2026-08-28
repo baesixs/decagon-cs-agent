@@ -45,12 +45,19 @@ export type RefundRecord = {
   createdAt: string;
 };
 
+export type PasswordResetRequest = {
+  id: string;
+  email: string;
+  createdAt: string;
+};
+
 export type PolicyTopic = "shipping" | "returns" | "password_reset" | "general";
 
 export type BooklyStore = {
   orders: Order[];
   returnCases: ReturnCase[];
   refunds: RefundRecord[];
+  passwordResets: PasswordResetRequest[];
   policies: Record<PolicyTopic, string>;
   returnWindowDays: number;
   immediateRefund: boolean;

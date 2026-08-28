@@ -2,36 +2,35 @@
 
 Interview-facing demo for [Decagon](https://decagon.ai): a small online bookstore support agent that is **conversational where we can** and **deterministic where it matters**.
 
-Not an all-in-one agent product. Five tools. Application code owns the return → refund sequence.
+Not an all-in-one agent product. Six tools. Application code owns return → refund and password-reset email.
 
 ## Principle
 
 Do not make something an agent decision when normal software can handle it.
 
-The model decides: *does this customer want a return?*  
-Bookly code decides: *validate, create the RMA, call payments if policy says so.*
+The model decides: *does this customer want a return?* / *do they want a reset email?*  
+Bookly code decides: *validate, create the RMA, call payments* / *hit the identity mock without leaking whether the account exists.*
 
-That is why the write surface is one tool (`createReturn`), not `createReturnCase` then `triggerRefundPayment`.
+That is why returns are one tool (`createReturn`), not `createReturnCase` then `triggerRefundPayment`. Same for `requestPasswordReset` — not a chain of IdP calls.
 
 ## Architecture
 
 ```
 user (text or voice)
-  → LLM (intent + which of 5 tools)
+  → LLM (intent + which tool)
       reads: findOrdersByEmail | getOrder | checkReturnEligibility | lookupPolicy
-      write: createReturn
-          → guardrails (re-check eligibility)
-          → POST /api/mock/returns
-          → if immediate-refund policy: POST /api/mock/payments/refund
+      writes: createReturn | requestPasswordReset
+          createReturn → mock Returns → optional mock Payment
+          requestPasswordReset → mock identity (no user enumeration)
   → customer-facing reply
-  → trace panel (tools + nested HTTP, not extra LLM tools)
+  → Details panel (tools + nested HTTP)
 ```
 
 - **Text:** OpenAI **Responses API** (`responses.create`), not Chat Completions. Custom function tools only. `previous_response_id` for multi-turn; `instructions` resent every call.
 - **Voice:** OpenAI **Realtime** (WebRTC). Function calls POST to the same `/api/tools/execute`.
 - **No** LangChain, Assistants hosted runner, or Responses built-in tools (`web_search`, MCP). Those would hide the loop.
 
-## Five tools
+## Tools
 
 | Tool | Kind | Role |
 | --- | --- | --- |
@@ -40,10 +39,13 @@ user (text or voice)
 | `checkReturnEligibility` | read | Eligible or not + reason. No writes. |
 | `lookupPolicy` | read | Canned shipping / returns / password_reset / general |
 | `createReturn` | write | After customer confirms. Internally: Returns API, then Payment API if policy allows. |
+| `requestPasswordReset` | write | After email is known. Mock identity API; does not reveal if the account exists. |
 
-Happy path: `checkReturnEligibility` → eligible → **customer confirms** → `createReturn`.
+Happy path (return): `checkReturnEligibility` → eligible → **customer confirms** → `createReturn`.
 
-Identity is **soft**: email must match the order. This is not auth.
+Happy path (password): collect email → `requestPasswordReset`.
+
+Identity for orders is **soft**: email must match the order. Password reset never confirms registration. This is not auth.
 
 ## Guardrails (fail closed)
 
@@ -71,7 +73,7 @@ Open [http://localhost:3000](http://localhost:3000).
 4. **Wrong email** — `BK-1001` as `sam@example.com` → `IDENTITY_MISMATCH`.
 5. **Unknown id** — `BK-9999`.
 6. **Shipping** — `BK-1003` in transit.
-7. **Password** — `lookupPolicy(password_reset)` only; no actual reset.
+7. **Password** — `requestPasswordReset` → mock identity API (generic “if an account exists” message). `lookupPolicy(password_reset)` for link lifetime.
 8. **Voice** — Connect voice, same tools, same trace.
 
 ## Env
@@ -89,7 +91,7 @@ Do not commit `.env.local`.
 
 - In-memory store (resets on server restart).
 - Soft email match, not login.
-- Mock Returns and Payment HTTP APIs, not Stripe/OMS.
+- Mock Returns, Payment, and identity HTTP APIs — not Stripe/OMS/Auth0.
 - No cancel-order writes.
 - Realtime needs mic permission and a key with Realtime access.
 
@@ -98,7 +100,7 @@ Do not commit `.env.local`.
 | Path | What to read |
 | --- | --- |
 | [`src/lib/agent/orchestrator.ts`](src/lib/agent/orchestrator.ts) | Responses API loop |
-| [`src/lib/agent/tools.ts`](src/lib/agent/tools.ts) | Five-tool catalog + `executeTool` |
+| [`src/lib/agent/tools.ts`](src/lib/agent/tools.ts) | Tool catalog + `executeTool` |
 | [`src/lib/guardrails/index.ts`](src/lib/guardrails/index.ts) | Fail-closed checks |
 | [`src/lib/returns/createReturn.ts`](src/lib/returns/createReturn.ts) | App orchestration (RMA → refund) |
 | [`src/app/api/tools/execute/route.ts`](src/app/api/tools/execute/route.ts) | Shared text + voice execute |

@@ -1,16 +1,53 @@
 /**
- * Mock commerce handlers. Used by HTTP routes.
- * createReturn calls those routes over HTTP so the trace shows a real round trip.
+ * Mock commerce / identity handlers. Used by HTTP routes.
+ * Tools call those routes over HTTP so the trace shows a real round trip.
  */
 
 import { getStore, itemsTotalCents } from "../store";
-import type { RefundRecord, ReturnCase } from "../store/types";
+import type {
+  PasswordResetRequest,
+  RefundRecord,
+  ReturnCase,
+} from "../store/types";
 
 export type MockApiResult = {
   ok: boolean;
   status: number;
   body: Record<string, unknown>;
 };
+
+export function handlePasswordReset(input: {
+  email: string;
+}): MockApiResult {
+  const email = input.email.trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return {
+      ok: false,
+      status: 400,
+      body: { ok: false, code: "INVALID_ARGS", message: "A valid email is required." },
+    };
+  }
+
+  const store = getStore();
+  if (!store.passwordResets) store.passwordResets = [];
+  const record: PasswordResetRequest = {
+    id: `PWD-${String(store.passwordResets.length + 1).padStart(4, "0")}`,
+    email,
+    createdAt: new Date().toISOString(),
+  };
+  store.passwordResets.push(record);
+
+  return {
+    ok: true,
+    status: 201,
+    body: {
+      ok: true,
+      resetRequestId: record.id,
+      message:
+        "If a Bookly account exists for this email, a reset link has been sent. We do not confirm whether the account exists.",
+    },
+  };
+}
 
 export function handleCreateReturnCase(input: {
   orderId: string;

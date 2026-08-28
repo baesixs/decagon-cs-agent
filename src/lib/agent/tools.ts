@@ -1,5 +1,5 @@
 /**
- * Tool catalog — five functions. Same schemas for Responses API and Realtime.
+ * Tool catalog — six functions. Same schemas for Responses API and Realtime.
  * executeTool is the single switch both channels use.
  *
  * Conversational: which tool to call (model).
@@ -16,6 +16,7 @@ import {
 } from "../guardrails";
 import { evaluateReturnEligibility } from "../returns/eligibility";
 import { createReturn } from "../returns/createReturn";
+import { requestPasswordReset } from "../identity/requestPasswordReset";
 import { traceEvent, type TraceEvent } from "./trace";
 
 const POLICY_TOPICS: PolicyTopic[] = [
@@ -78,7 +79,7 @@ export const TOOL_DEFINITIONS: FunctionTool[] = [
     type: "function",
     name: "lookupPolicy",
     description:
-      "Canned Bookly policy text. topic must be shipping, returns, password_reset, or general.",
+      "Canned Bookly policy text. topic must be shipping, returns, password_reset, or general. For sending a reset email, use requestPasswordReset instead.",
     strict: true,
     parameters: {
       type: "object",
@@ -96,7 +97,7 @@ export const TOOL_DEFINITIONS: FunctionTool[] = [
     type: "function",
     name: "createReturn",
     description:
-      "The only write tool. After the customer confirms, create a return. Bookly code then calls Returns API and, if policy allows, Payment API. Do not call this until the customer confirms.",
+      "Start a return after the customer confirms. Bookly code then calls Returns API and, if policy allows, Payment API.",
     strict: true,
     parameters: {
       type: "object",
@@ -108,6 +109,21 @@ export const TOOL_DEFINITIONS: FunctionTool[] = [
         reason: { type: "string" },
       },
       required: ["orderId", "email", "itemIds", "reason"],
+    },
+  },
+  {
+    type: "function",
+    name: "requestPasswordReset",
+    description:
+      "Send a password reset email for this address. Always succeeds with a generic message (does not reveal whether the account exists). Ask for email first. Does not set a new password.",
+    strict: true,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        email: { type: "string" },
+      },
+      required: ["email"],
     },
   },
 ];
@@ -258,13 +274,27 @@ export async function executeTool(
       const { traces: _t, ...rest } = result;
       return { traces, output: rest };
     }
+    case "requestPasswordReset": {
+      const email = String(args.email ?? "").trim();
+      if (!email) {
+        return fail(traces, {
+          ok: false,
+          code: "INVALID_ARGS",
+          message: "email is required.",
+        });
+      }
+      const result = await requestPasswordReset(email, origin);
+      traces.push(...result.traces);
+      const { traces: _tr, ...rest } = result;
+      return { traces, output: rest };
+    }
     default:
       return {
         traces,
         output: {
           ok: false,
           code: "UNKNOWN_TOOL",
-          message: `No tool named ${name}. Catalog is five tools only.`,
+          message: `No tool named ${name}.`,
         },
       };
   }

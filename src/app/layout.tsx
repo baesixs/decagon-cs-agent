@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
+import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
-
-const serif = Source_Serif_4({
-  subsets: ["latin"],
-  variable: "--font-serif",
-});
 
 const sans = IBM_Plex_Sans({
   subsets: ["latin"],
@@ -14,9 +9,8 @@ const sans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Bookly Care — support agent POC",
-  description:
-    "Agentic customer support demo: five tools, deterministic returns, text + voice.",
+  title: "Bookly Care",
+  description: "Bookly customer support — text and voice.",
 };
 
 export default function RootLayout({
@@ -26,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${serif.variable} ${sans.variable} antialiased`}>
+      <body className={`${sans.variable} h-full overflow-hidden antialiased`}>
         {children}
       </body>
     </html>

@@ -44,6 +44,10 @@ function outputText(response: OpenAI.Responses.Response): string {
 
 export async function runTextTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
   const traces: TraceEvent[] = [
+    traceEvent("user", "customer message", {
+      channel: "text",
+      text: input.userText,
+    }),
     traceEvent("turn", "text turn", { model: TEXT_MODEL }),
   ];
 
@@ -68,6 +72,10 @@ export async function runTextTurn(input: ChatTurnInput): Promise<ChatTurnResult>
     traces.push(
       traceEvent("llm", `responses.create (${step === 0 ? "user" : "tool results"})`, {
         previous_response_id: previousId ?? null,
+        input:
+          step === 0
+            ? { type: "user_text", text: input.userText }
+            : { type: "function_call_output", count: Array.isArray(nextInput) ? nextInput.length : 0 },
       }),
     );
 

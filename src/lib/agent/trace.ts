@@ -1,4 +1,5 @@
 export type TraceKind =
+  | "user"
   | "turn"
   | "llm"
   | "tool_call"

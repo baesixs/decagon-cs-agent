@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import type { TraceEvent } from "@/lib/agent/trace";
+import { traceEvent, type TraceEvent } from "@/lib/agent/trace";
 import { TracePanel } from "./TracePanel";
 import { VoiceControls } from "./VoiceControls";
 
@@ -297,7 +297,7 @@ export function ChatApp() {
           />
           <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
             <VoiceControls
-              onUserTranscript={(text) =>
+              onUserTranscript={(text) => {
                 setMessages((m) => [
                   ...m,
                   {
@@ -306,9 +306,15 @@ export function ChatApp() {
                     text,
                     channel: "voice",
                   },
-                ])
-              }
-              onAssistantTranscript={(text) =>
+                ]);
+                appendTraces([
+                  traceEvent("user", "customer message", {
+                    channel: "voice",
+                    text,
+                  }),
+                ]);
+              }}
+              onAssistantTranscript={(text) => {
                 setMessages((m) => [
                   ...m,
                   {
@@ -317,8 +323,11 @@ export function ChatApp() {
                     text,
                     channel: "voice",
                   },
-                ])
-              }
+                ]);
+                appendTraces([
+                  traceEvent("reply", "assistant message", { channel: "voice", reply: text }),
+                ]);
+              }}
               onTraces={appendTraces}
             />
             <button
